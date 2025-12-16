@@ -69,7 +69,7 @@ jobs:
           mkdir -p backups
 
           # List of secret paths to backup
-          PATHS=(
+          SECRET_PATHS=(
             "/"
             "/shared"
             "/service-cloud-api"
@@ -79,12 +79,12 @@ jobs:
             "/akash"
           )
 
-          for PATH in "${PATHS[@]}"; do
-            echo "Exporting secrets from $PATH..."
+          for SECRET_PATH in "${SECRET_PATHS[@]}"; do
+            echo "Exporting secrets from $SECRET_PATH..."
 
-            SAFE_PATH=$(echo "$PATH" | sed 's/\//_/g')
+            SAFE_PATH=$(echo "$SECRET_PATH" | sed 's/\//_/g')
 
-            RESPONSE=$(curl -s -X GET "${{ env.INFISICAL_API_URL }}/v3/secrets/raw?workspaceId=${{ secrets.INFISICAL_PROJECT_ID }}&environment=$ENVIRONMENT&secretPath=$PATH" \
+            RESPONSE=$(curl -s -X GET "${{ env.INFISICAL_API_URL }}/v3/secrets/raw?workspaceId=${{ secrets.INFISICAL_PROJECT_ID }}&environment=$ENVIRONMENT&secretPath=$SECRET_PATH" \
               -H "Authorization: Bearer $ACCESS_TOKEN")
 
             # Check if we got secrets
@@ -92,9 +92,9 @@ jobs:
 
             if [ "$COUNT" -gt 0 ]; then
               echo "$RESPONSE" | jq '.secrets' > "backups/secrets${SAFE_PATH}.json"
-              echo "  Exported $COUNT secrets from $PATH"
+              echo "  Exported $COUNT secrets from $SECRET_PATH"
             else
-              echo "  No secrets found in $PATH (or path doesn't exist)"
+              echo "  No secrets found in $SECRET_PATH (or path doesn't exist)"
             fi
           done
 
