@@ -1,0 +1,152 @@
+---
+# Akash SDL - Infisical Secrets Management
+#
+# Self-hosted secrets management platform for AlternateFutures.
+# 3-container deployment: Infisical app + PostgreSQL + Redis
+#
+# URL: https://secrets.alternatefutures.ai
+#
+# ============================================================================
+# DEPLOYMENT UPDATE RULES
+# ============================================================================
+#
+# MANIFEST-ONLY UPDATE (same dseq, same ingress URL, no DNS change):
+#   Use `akash tx deployment update` or send-manifest API
+#   - Environment variable changes (env section)
+#   - Docker image tag changes (e.g., :latest -> :v1.2.3)
+#   NOTE: Resources (CPU, memory, storage) must remain IDENTICAL
+#
+# FULL REDEPLOY REQUIRED (new dseq, NEW ingress URL, DNS update needed):
+#   Must close old deployment and create new one
+#   - CPU/memory/storage changes
+#   - Adding/removing services
+#   - Changing exposed ports
+#
+# After full redeploy, update DNS:
+#   1. Get new ingress URL from get-services API
+#   2. Update Cloudflare CNAME: secrets.alternatefutures.ai -> new-ingress.provider.com
+#   3. Close old deployment to stop billing
+#
+# ============================================================================
+# SECRETS
+# ============================================================================
+# Replace these placeholders before deployment:
+#   - ${ENCRYPTION_KEY}: 32 hex characters (16 bytes for AES-128-GCM)
+#   - ${AUTH_SECRET}: 32+ character base64 string for JWT signing
+#   - ${POSTGRES_PASSWORD}: Random secure password
+#   - ${SMTP_PASSWORD}: Resend API key (re_xxx...)
+#
+# Generate with:
+#   ENCRYPTION_KEY=$(openssl rand -hex 16)
+#   AUTH_SECRET=$(openssl rand -base64 32)
+#   POSTGRES_PASSWORD=$(openssl rand -hex 16)
+# ============================================================================
+
+version: "2.0"
+
+services:
+  infisical:
+    image: infisical/infisical:latest
+    expose:
+      - port: 8080
+        as: 80
+        to:
+          - global: true
+    env:
+      # Database encryption key (16-byte hex for AES-128-GCM)
+      # MUST be exactly 32 hex characters
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      # JWT signing secret (32-byte base64)
+      - AUTH_SECRET=${AUTH_SECRET}
+      # Database connection
+      - DB_CONNECTION_URI=postgres://infisical:${POSTGRES_PASSWORD}@postgres:5432/infisical
+      # Redis connection
+      - REDIS_URL=redis://redis:6379
+      # Public URL for callbacks
+      - SITE_URL=https://secrets.alternatefutures.ai
+      # Disable telemetry
+      - TELEMETRY_ENABLED=false
+      # Disable restrictive CSP (conflicts with Cloudflare proxy)
+      - NEXT_PUBLIC_DISABLE_CSP=true
+      # SMTP Configuration (Resend)
+      - SMTP_HOST=smtp.resend.com
+      - SMTP_PORT=587
+      - SMTP_USERNAME=resend
+      - SMTP_PASSWORD=${SMTP_PASSWORD}
+      - SMTP_FROM_ADDRESS=noreply@alternatefutures.ai
+      - SMTP_FROM_NAME=AlternateFutures
+    depends_on:
+      - postgres
+      - redis
+
+  postgres:
+    image: postgres:15-alpine
+    expose:
+      - port: 5432
+        to:
+          - service: infisical
+    env:
+      - POSTGRES_USER=infisical
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=infisical
+
+  redis:
+    image: redis:7-alpine
+    expose:
+      - port: 6379
+        to:
+          - service: infisical
+
+profiles:
+  compute:
+    infisical:
+      resources:
+        cpu:
+          units: 1
+        memory:
+          size: 1Gi
+        storage:
+          size: 512Mi
+    postgres:
+      resources:
+        cpu:
+          units: 1
+        memory:
+          size: 1Gi
+        storage:
+          size: 10Gi
+    redis:
+      resources:
+        cpu:
+          units: 0.5
+        memory:
+          size: 256Mi
+        storage:
+          size: 512Mi
+
+  placement:
+    dcloud:
+      pricing:
+        infisical:
+          denom: uakt
+          amount: 20
+        postgres:
+          denom: uakt
+          amount: 25
+        redis:
+          denom: uakt
+          amount: 10
+
+deployment:
+  infisical:
+    dcloud:
+      profile: infisical
+      count: 1
+  postgres:
+    dcloud:
+      profile: postgres
+      count: 1
+  redis:
+    dcloud:
+      profile: redis
+      count: 1

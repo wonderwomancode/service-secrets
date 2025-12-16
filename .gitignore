@@ -1,0 +1,26 @@
+# Environment files with secrets
+.env
+*.env
+!*.example.env
+
+# Bootstrap secrets (encrypted versions OK)
+bootstrap.env
+!bootstrap.enc.env
+
+# Age keys (NEVER commit)
+.age-key.txt
+*.age
+
+# Node
+node_modules/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+*.log
