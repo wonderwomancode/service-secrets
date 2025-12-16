@@ -5,7 +5,7 @@
 Daily backups run via GitHub Actions at 3 AM UTC:
 - Export all secrets from Infisical API
 - Encrypt with `age` (public key encryption)
-- Upload to Arweave (permanent, decentralized storage)
+- Upload to Storacha (IPFS + Filecoin storage)
 - Also stored as GitHub artifact (30-day retention)
 
 ### Required GitHub Secrets
@@ -16,36 +16,49 @@ Daily backups run via GitHub Actions at 3 AM UTC:
 | `INFISICAL_CLIENT_SECRET` | Machine identity secret |
 | `INFISICAL_PROJECT_ID` | Infisical project UUID |
 | `AGE_PUBLIC_KEY` | Public key for encrypting backups |
-| `ARWEAVE_WALLET_JWK` | Arweave wallet JSON for uploads |
+| `W3_PRINCIPAL` | Storacha agent private key (base64) |
+| `W3_PROOF` | Storacha delegation proof (base64) |
+
+### Storacha Configuration
+
+- **Account:** angela@alternatefutures.ai
+- **Space:** `alternatefutures-backups`
+- **Space DID:** `did:key:z6Mkoe31W9Z8WBznHQ6GPrfPaBdjnFC1fMt6P8QbZ9kKoQU6`
+- **CI Agent DID:** `did:key:z6MksU8hnbAmL2xaY7nrRZ6az1qENLMcYdRgJvdPEzFgJzXs`
+- **Gateway:** https://w3s.link/ipfs/
 
 ### Manual Backup Trigger
 
 ```bash
 gh workflow run backup.yml \
-  --repo wonderwomancode/service-secrets \
+  --repo alternatefutures/service-secrets \
   -f environment=production
 ```
 
 ## Finding Backups
 
-### Arweave
+### Storacha (IPFS + Filecoin)
 
-Search for backups on Arweave:
+Backups are stored on IPFS with Filecoin storage deals. Access via:
 ```
-https://arweave.net/graphql
-Query: tags: [{ name: "app", values: ["alternatefutures"] }, { name: "type", values: ["secrets-backup"] }]
+https://w3s.link/ipfs/<CID>
 ```
 
-Or via ArDrive/ViewBlock:
+List uploads in the space:
+```bash
+w3 ls
 ```
-https://viewblock.io/arweave/address/<wallet-address>
+
+Or via the Storacha console:
+```
+https://console.storacha.network
 ```
 
 ### GitHub Artifacts
 
-1. Go to Actions → Backup Secrets to Arweave
+1. Go to Actions → Backup Secrets
 2. Select a workflow run
-3. Download the artifact
+3. Download the artifact (30-day retention)
 
 ## Restore Procedure
 
@@ -55,11 +68,14 @@ https://viewblock.io/arweave/address/<wallet-address>
 # Get your age private key
 export AGE_KEY_FILE=~/.age-key.txt
 
-# Restore from Arweave
-./scripts/restore-backup.sh ar://YOUR_TX_ID $AGE_KEY_FILE
+# Download from Storacha (using CID from workflow logs)
+curl -o backup.tar.gz.age "https://w3s.link/ipfs/<CID>"
 
 # Or from downloaded artifact
-age -d -i $AGE_KEY_FILE -o backup.tar.gz backup-xxx.tar.gz.age
+# (artifact contains the .age file)
+
+# Decrypt
+age -d -i $AGE_KEY_FILE -o backup.tar.gz backup.tar.gz.age
 tar -xzf backup.tar.gz
 ```
 
@@ -114,7 +130,7 @@ done
    - Complete first-time setup at https://secrets.alternatefutures.ai
 
 2. **Restore from backup**
-   - Download latest backup from Arweave
+   - Download latest backup from Storacha or GitHub Artifacts
    - Decrypt with age private key
    - Import secrets via CLI or API
 
@@ -137,19 +153,19 @@ If you lose the Infisical ENCRYPTION_KEY:
 **Prevention:** Store ENCRYPTION_KEY in multiple secure locations:
 - Encrypted in GitHub Secrets
 - Encrypted in 1Password/Bitwarden
-- Encrypted backup on Arweave
+- Encrypted backup on Storacha
 
 ## Retention Policy
 
 | Storage | Retention |
 |---------|-----------|
-| Arweave | Permanent (200+ years) |
+| Storacha (IPFS + Filecoin) | Filecoin storage deals (~months-years) |
 | GitHub Artifacts | 30 days |
 
 ## Backup Verification
 
 Monthly verification checklist:
-- [ ] Download latest Arweave backup
+- [ ] Download latest Storacha backup using CID
 - [ ] Decrypt successfully with age key
 - [ ] Verify secret count matches production
 - [ ] Test restore to staging environment
