@@ -64,9 +64,18 @@ jobs:
       - name: Export secrets from all folders
         env:
           ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
-          ENVIRONMENT: ${{ inputs.environment || 'production' }}
+          INPUT_ENV: ${{ inputs.environment || 'production' }}
         run: |
           mkdir -p backups
+
+          # Map environment names to Infisical slugs
+          case "$INPUT_ENV" in
+            production) ENVIRONMENT="prod" ;;
+            staging) ENVIRONMENT="staging" ;;
+            development) ENVIRONMENT="dev" ;;
+            *) ENVIRONMENT="$INPUT_ENV" ;;
+          esac
+          echo "Using Infisical environment: $ENVIRONMENT"
 
           # List of secret paths to backup
           SECRET_PATHS=(
